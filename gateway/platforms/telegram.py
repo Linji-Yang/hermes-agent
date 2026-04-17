@@ -87,6 +87,24 @@ from gateway.platforms.telegram_network import (
 from utils import atomic_replace
 
 
+# Patch HTTPXRequest for httpx 0.25 compatibility (proxy → proxies)
+import httpx as _httpx
+from telegram.request import HTTPXRequest as _HTTPXRequest
+import inspect as _inspect
+_ac_params = list(_inspect.signature(_httpx.AsyncClient.__init__).parameters.keys())
+if 'proxy' not in _ac_params and 'proxies' in _ac_params:
+    _orig_build = _HTTPXRequest._build_client
+    def _patched_build_client(self):
+        kwargs = dict(self._client_kwargs)
+        if 'proxy' in kwargs:
+            proxy_val = kwargs.pop('proxy')
+            if proxy_val is not None:
+                kwargs['proxies'] = proxy_val
+        self._client_kwargs = kwargs
+        return _orig_build(self)
+    _HTTPXRequest._build_client = _patched_build_client
+
+
 def check_telegram_requirements() -> bool:
     """Check if Telegram dependencies are available."""
     return TELEGRAM_AVAILABLE
